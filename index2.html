@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fairway Fortune</title>
+  <style>
+    body { display: flex; flex-direction: column; align-items: center; font-family: Arial; background: url('golf_background.jpg'); background-size: cover; color: white; }
+    #reels { display: grid; grid-template-columns: repeat(5, 80px); grid-template-rows: repeat(5, 80px); gap: 5px; background: rgba(0, 100, 0, 0.8); padding: 10px; border-radius: 10px; }
+    .reel { width: 80px; height: 80px; background: white; display: flex; align-items: center; justify-content: center; font-size: 40px; border: 2px solid gold; }
+    #info { margin: 20px; font-size: 20px; background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 5px; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; cursor: pointer; background: #ffd700; border: none; border-radius: 5px; }
+    button:hover { background: #ffeb3b; }
+    .spinning { animation: spin 0.3s linear infinite; }
+    @keyframes spin { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
+    #bonus { display: none; position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.9); padding: 20px; border-radius: 10px; text-align: center; }
+    #bonus.show { display: block; }
+  </style>
+</head>
+<body>
+  <div id="reels"></div>
+  <div id="info">Coins: 1000 | Bet: 0 | Last Win: 0</div>
+  <div>
+    <button onclick="chooseBet('standard')">Standard Bet (10 coins)</button>
+    <button onclick="chooseBet('pro')">Pro Bet (50 coins)</button>
+    <button onclick="chooseBet('championship')">Championship Bet (100 coins)</button>
+    <button onclick="spin()" id="spinBtn" disabled>Spin</button>
+  </div>
+  <div id="bonus">
+    <h2>Hole-in-One Bonus!</h2>
+    <p id="bonusMessage">Watch the golfer tee off...</p>
+    <button onclick="closeBonus()">Continue</button>
+  </div>
+  <script>
+    // Symbols and payouts
+    const symbols = ['🏐', '⛳', '🧤', '🏌️', '🚗', '🏆', '🚩', '🏌️‍♂️']; // Golf Ball, Tee, Glove, Club, Cart, Trophy, Flag, Golfer (Bonus)
+    const payouts = {
+      '🏐🏐🏐': 5, '🏐🏐🏐🏐': 10, '🏐🏐🏐🏐🏐': 20, // Golf Ball
+      '⛳⛳⛳': 5, '⛳⛳⛳⛳': 10, '⛳⛳⛳⛳⛳': 20, // Tee
+      '🧤🧤🧤': 10, '🧤🧤🧤🧤': 20, '🧤🧤🧤🧤🧤': 40, // Glove
+      '🏌️🏌️🏌️': 20, '🏌️🏌️🏌️🏌️': 40, '🏌️🏌️🏌️🏌️🏌️': 80, // Club
+      '🚗🚗🚗': 30, '🚗🚗🚗🚗': 60, '🚗🚗🚗🚗🚗': 120, // Cart
+      '🏆🏆🏆': 50, '🏆🏆🏆🏆': 100, '🏆🏆🏆🏆🏆': 200, // Trophy
+      '🚩🚩🚩': 100, '🚩🚩🚩🚩': 200, '🚩🚩🚩🚩🚩': 500 // Flag
+    };
+    const paylines = [
+      [0, 1, 2, 3, 4], // Row 1
+      [5, 6, 7, 8, 9], // Row 2
+      [10, 11, 12, 13, 14], // Row 3
+      [15, 16, 17, 18, 19], // Row 4
+      [20, 21, 22, 23, 24], // Row 5
+      [0, 6, 12, 18, 24], // Diagonal top-left to bottom-right
+      [4, 8, 12, 16, 20] // Diagonal top-right to bottom-left
+    ];
+    let state = { coins: 1000, bet: 0, multiplier: 1, bonusChance: 0, lastWin: 0 };
+    let spinning = false;
+
+    // Betting options
+    const betOptions = {
+      standard: { cost: 10, multiplier: 1, bonusChance: 0 },
+      pro: { cost: 50, multiplier: 2, bonusChance: 0 },
+      championship: { cost: 100, multiplier: 1.5, bonusChance: 0.1 }
+    };
+
+    // Initialize reels
+    const reels = document.getElementById('reels');
+    for (let i = 0; i < 25; i++) {
+      const reel = document.createElement('div');
+      reel.className = 'reel';
+      reel.id = `reel${i}`;
+      reel.textContent = '?';
+      reels.appendChild(reel);
+    }
+
+    function chooseBet(type) {
+      state.bet = betOptions[type].cost;
+      state.multiplier = betOptions[type].multiplier;
+      state.bonusChance = betOptions[type].bonusChance;
+      document.getElementById('spinBtn').disabled = false;
+      updateInfo();
+    }
+
+    function spin() {
+      if (spinning || state.coins < state.bet) return;
+      spinning = true;
+      state.coins -= state.bet;
+      document.getElementById('spinBtn').disabled = true;
+
+      // Animate reels
+      const reelElements = Array.from(document.querySelectorAll('.reel'));
+      reelElements.forEach(reel => reel.classList.add('spinning'));
+
+      setTimeout(() => {
+        // Randomize symbols
+        const grid = reelElements.map(() => symbols[Math.floor(Math.random() * symbols.length)]);
+        reelElements.forEach((reel, i) => {
+          reel.textContent = grid[i];
+          reel.classList.remove('spinning');
+        });
+
+        // Check paylines
+        state.lastWin = 0;
+        paylines.forEach(line => {
+          const lineSymbols = line.map(i => grid[i]).join('');
+          const payout = payouts[lineSymbols.slice(0, 3)] || payouts[lineSymbols.slice(0, 4)] || payouts[lineSymbols];
+          if (payout) state.lastWin += payout * state.bet * state.multiplier;
+        });
+        state.coins += state.lastWin;
+
+        // Check bonus (3+ Golfer Icons)
+        const bonusCount = grid.filter(s => s === '🏌️‍♂️').length;
+        if (bonusCount >= 3 || (state.bonusChance && Math.random() < state.bonusChance)) {
+          triggerBonus(bonusCount);
+        } else {
+          spinning = false;
+          document.getElementById('spinBtn').disabled = false;
+          updateInfo();
+        }
+      }, 1000);
+    }
+
+    function triggerBonus(count) {
+      const bonusDiv = document.getElementById('bonus');
+      bonusDiv.classList.add('show');
+      document.getElementById('bonusMessage').textContent = `Watch the golfer tee off... (${count >= 3 ? count * 50 : 50} coins!)`;
+      reels.style.transform = 'translateY(100vh)'; // Slide reels down
+      state.coins += count >= 3 ? count * 50 : 50; // Bonus reward
+    }
+
+    function closeBonus() {
+      document.getElementById('bonus').classList.remove('show');
+      reels.style.transform = 'translateY(0)'; // Slide reels back
+      spinning = false;
+      document.getElementById('spinBtn').disabled = false;
+      updateInfo();
+    }
+
+    function updateInfo() {
+      document.getElementById('info').textContent = `Coins: ${state.coins} | Bet: ${state.bet} | Last Win: ${state.lastWin}`;
+      if (state.coins <= 0) {
+        alert('Game Over! No coins left.');
+        document.getElementById('spinBtn').disabled = true;
+      }
+    }
+  </script>
+</body>
+</html>
